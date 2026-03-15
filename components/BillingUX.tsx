@@ -1,9 +1,7 @@
-"use client"
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Palette & Design System ───────────────────────────────────────────────
 const css = `
-
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
   :root {
@@ -161,36 +159,104 @@ const css = `
 
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   .pulse { animation: pulse 1.5s ease infinite; }
+
+  /* ─── Responsive layout ─────────────────────────────────────── */
+  .app-shell   { display: flex; min-height: 100vh; overflow-x: hidden; }
+  .app-content { flex: 1; overflow: auto; background: var(--bg); min-width: 0; }
+
+  .app-sidebar {
+    width: 220px; flex-shrink: 0;
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    height: 100vh; position: sticky; top: 0;
+  }
+
+  .page-wrap { padding: 28px 32px; margin: 0 auto; }
+
+  .stat-grid    { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .dash-grid    { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  .gen-grid     { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  @media (max-width: 768px) {
+    html, body { overflow-x: hidden; }
+
+    /* App shell: sidebar becomes top nav bar */
+    .app-shell   { flex-direction: column; }
+    .app-sidebar {
+      width: 100%; height: auto; position: relative;
+      flex-direction: row; border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .app-sidebar .sidebar-brand { display: none; }
+    .app-sidebar nav {
+      display: flex; flex-direction: row; flex: 1;
+      padding: 6px 8px; gap: 2px; overflow-x: auto;
+    }
+    .app-sidebar nav button {
+      flex-direction: column; gap: 2px; padding: 7px 10px;
+      min-width: 54px; white-space: nowrap; border-left: none !important;
+      border-bottom: 2px solid transparent; border-radius: 8px; text-align: center;
+    }
+    .app-sidebar .sidebar-user  { display: none; }
+    .app-sidebar .sidebar-signout {
+      display: flex !important; align-items: center;
+      padding: 8px; border-left: 1px solid var(--border); flex-shrink: 0;
+    }
+
+    /* Page padding */
+    .page-wrap { padding: 14px 16px; }
+
+    /* Named layout grids collapse */
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .dash-grid { grid-template-columns: 1fr; }
+    .gen-grid  { grid-template-columns: 1fr; }
+
+    /* 2-col and 3-col form grids collapse */
+    .fr2 { grid-template-columns: 1fr; }
+    .fr3 { grid-template-columns: 1fr 1fr; }
+
+    /* auto-fill card grids: force 1 column on small phones */
+    .auto-grid { grid-template-columns: 1fr !important; }
+
+    /* Fixed fixed-pixel table grids: allow horizontal scroll instead of overflow */
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table-scroll .table-inner { min-width: 560px; }
+
+    /* Accept / reject 2-col → stack */
+    .action-grid { grid-template-columns: 1fr !important; }
+
+    /* Time-field inline grid → stack */
+    .time-grid { grid-template-columns: 1fr !important; }
+
+    /* Peer profile stat tiles: shrink but stay 3-col */
+    .peer-stats { gap: 6px !important; }
+    .peer-stats > div { padding: 8px 6px !important; }
+
+    /* Page header rows with filter pills wrap on mobile */
+    .page-header { flex-wrap: wrap; gap: 10px !important; }
+    .page-header-actions { margin-left: 0 !important; flex-wrap: wrap; }
+
+    /* Modal full-width on mobile */
+    .modal-box {
+      width: 100% !important; max-width: 100% !important;
+      margin: 0; border-radius: 0 !important;
+      max-height: 100vh; height: 100vh;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .fr3       { grid-template-columns: 1fr; }
+    .auto-grid { grid-template-columns: 1fr !important; }
+  }
 `;
 
 // ─── Utilities ────────────────────────────────────────────────────────────
 const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const fmtTime = (d) => new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-const uid = () => {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return Math.random().toString(36).slice(2, 9) + Math.random().toString(36).slice(2, 9);
-};
+const uid = () => Math.random().toString(36).slice(2, 9);
 const initials = (first, last) => `${first?.[0] || ""}${last?.[0] || ""}`.toUpperCase();
 const displayName = (first, last) => `${first || ""} ${last?.[0] || ""}.`.trim();
-
-// ─── Client-only style injector ────────────────────────────────────────────
-// Injects the design-system CSS after mount to avoid SSR/hydration mismatches.
-// The <style> tag is created and managed entirely on the client.
-function StyleInjector() {
-  useEffect(() => {
-    const id = "peerbill-design-system";
-    if (document.getElementById(id)) return;
-    const el = document.createElement("style");
-    el.id = id;
-    el.textContent = css;
-    document.head.appendChild(el);
-    return () => {
-      const existing = document.getElementById(id);
-      if (existing) existing.remove();
-    };
-  }, []);
-  return null;
-}
 
 const SERVICE_TYPES = [
   "Individual Peer Support",
@@ -226,15 +292,64 @@ const BARRIERS = [
 
 // ─── LocalStorage helpers ─────────────────────────────────────────────────
 const LS = {
-  get: (k: string, def: any) => {
-    if (typeof window === "undefined") return def;
+  get: (k, def) => {
     try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; }
   },
-  set: (k: string, v: any) => {
-    if (typeof window === "undefined") return;
-    try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
-  },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
+
+// ─── Structured Data Stores ───────────────────────────────────────────────
+// These stores manage each data domain independently via localStorage.
+// Each store exposes: get, save, add, delete (and helpers where applicable).
+// Mirrors: /stores/profilesStore.ts, housesStore.ts, clientsStore.ts, servicesStore.ts
+
+// ── Profiles Store ── key: "profiles" ─────────────────────────────────────
+// Model: { id: number, name: string, role: string }
+const ProfilesStore = {
+  get: ()                               => { try { const r = localStorage.getItem("profiles"); return r ? JSON.parse(r) : []; } catch { return []; } },
+  save: (profiles)                      => { try { localStorage.setItem("profiles", JSON.stringify(profiles)); } catch {} },
+  add: (name, role)                     => { const cur = ProfilesStore.get(); const id = cur.length > 0 ? Math.max(...cur.map((p) => p.id)) + 1 : 1; const updated = [...cur, { id, name: name.trim(), role }]; ProfilesStore.save(updated); return updated; },
+  delete: (id)                          => { const updated = ProfilesStore.get().filter((p) => p.id !== id); ProfilesStore.save(updated); return updated; },
+  getById: (id)                         => ProfilesStore.get().find((p) => p.id === id),
+};
+
+// ── Houses Store ── key: "pb_houses" ──────────────────────────────────────
+// Model: { id: string, name: string, managerId: string }
+const HousesStore = {
+  get: ()                               => { try { const r = localStorage.getItem("pb_houses"); return r ? JSON.parse(r) : []; } catch { return []; } },
+  save: (houses)                        => { try { localStorage.setItem("pb_houses", JSON.stringify(houses)); } catch {} },
+  add: (name, managerId = "")           => { const cur = HousesStore.get(); const id = Math.random().toString(36).slice(2, 9); const updated = [...cur, { id, name: name.trim(), managerId }]; HousesStore.save(updated); return updated; },
+  delete: (id)                          => { const updated = HousesStore.get().filter((h) => h.id !== id); HousesStore.save(updated); return updated; },
+  getById: (id)                         => HousesStore.get().find((h) => h.id === id),
+  update: (id, changes)                 => { const updated = HousesStore.get().map((h) => h.id === id ? { ...h, ...changes } : h); HousesStore.save(updated); return updated; },
+};
+
+// ── Clients Store ── key: "pb_clients" ────────────────────────────────────
+// Model: { id: string, name: string, houseId: string }
+const ClientsStore = {
+  get: ()                               => { try { const r = localStorage.getItem("pb_clients"); return r ? JSON.parse(r) : []; } catch { return []; } },
+  save: (clients)                       => { try { localStorage.setItem("pb_clients", JSON.stringify(clients)); } catch {} },
+  add: (name, houseId = "")             => { const cur = ClientsStore.get(); const id = Math.random().toString(36).slice(2, 9); const updated = [...cur, { id, name: name.trim(), houseId }]; ClientsStore.save(updated); return updated; },
+  delete: (id)                          => { const updated = ClientsStore.get().filter((c) => c.id !== id); ClientsStore.save(updated); return updated; },
+  getById: (id)                         => ClientsStore.get().find((c) => c.id === id),
+  getByHouse: (houseId)                 => ClientsStore.get().filter((c) => c.houseId === houseId),
+  update: (id, changes)                 => { const updated = ClientsStore.get().map((c) => c.id === id ? { ...c, ...changes } : c); ClientsStore.save(updated); return updated; },
+};
+
+// ── Services Store ── key: "pb_ledger" ────────────────────────────────────
+// Model: { id: string, peerId: string, clientId: string, houseId: string, duration: number, note: string, date: string }
+const ServicesStore = {
+  get: ()                               => { try { const r = localStorage.getItem("pb_ledger"); return r ? JSON.parse(r) : []; } catch { return []; } },
+  save: (services)                      => { try { localStorage.setItem("pb_ledger", JSON.stringify(services)); } catch {} },
+  add: (peerId, clientId, houseId, duration, note, date) => { const cur = ServicesStore.get(); const id = Math.random().toString(36).slice(2, 9); const updated = [...cur, { id, peerId, clientId, houseId, duration, note: (note || "").trim(), date: date ?? new Date().toISOString() }]; ServicesStore.save(updated); return updated; },
+  delete: (id)                          => { const updated = ServicesStore.get().filter((s) => s.id !== id); ServicesStore.save(updated); return updated; },
+  getById: (id)                         => ServicesStore.get().find((s) => s.id === id),
+  getByClient: (clientId)               => ServicesStore.get().filter((s) => s.clientId === clientId),
+  getByPeer: (peerId)                   => ServicesStore.get().filter((s) => s.peerId === peerId),
+  getByHouse: (houseId)                 => ServicesStore.get().filter((s) => s.houseId === houseId),
+  update: (id, changes)                 => { const updated = ServicesStore.get().map((s) => s.id === id ? { ...s, ...changes } : s); ServicesStore.save(updated); return updated; },
+};
+// ─────────────────────────────────────────────────────────────────────────
 
 // ─── House color palette (cycled on creation) ─────────────────────────────
 const HOUSE_COLORS = ["#4f8ef7","#34d399","#a78bfa","#fbbf24","#f87171","#38bdf8","#fb923c","#a3e635"];
@@ -345,7 +460,7 @@ function Modal({ open, onClose, title, children, width = 560 }) {
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
       zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
     }} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="fade-in" style={{
+      <div className="fade-in modal-box" style={{
         background: "var(--surface)", border: "1px solid var(--border-strong)",
         borderRadius: "var(--radius-lg)", width, maxWidth: "100%", maxHeight: "90vh",
         overflow: "auto", boxShadow: "var(--shadow-lg)",
@@ -389,7 +504,8 @@ function LoginScreen({ onLogin }) {
     { email: "director@barbell.org", password: "barbell2024", name: "Sam Torres",    role: "Peer" },
   ];
 
-  const submit = () => {
+  const handleLogin = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     const user = USERS.find((u) => u.email === email.trim().toLowerCase() && u.password === pass);
     if (user) onLogin(user);
     else setErr("Invalid credentials. Please try again.");
@@ -412,22 +528,32 @@ function LoginScreen({ onLogin }) {
           <div style={{ fontSize: 13, color: "var(--text-sec)" }}>Barbell Saves Project · Staff Portal</div>
         </div>
         <div className="card" style={{ padding: 28 }}>
-          <div className="fg">
-            <label className="label">Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@barbell.org" type="email"
-              onKeyDown={(e) => e.key === "Enter" && submit()} />
-          </div>
-          <div className="fg">
-            <label className="label">Password</label>
-            <input value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Password" type="password"
-              onKeyDown={(e) => e.key === "Enter" && submit()} />
-          </div>
-          {err && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 12 }}>{err}</div>}
-          <button className="btn-primary" style={{ width: "100%", padding: 12 }} onClick={submit}>Sign In</button>
-          <div style={{ marginTop: 16, padding: 12, background: "var(--bg)", borderRadius: 8, fontSize: 12, color: "var(--text-dim)" }}>
-            <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--text-sec)" }}>Demo credentials</div>
-            <div style={{ marginBottom: 3 }}>Admin: admin@barbell.org / barbell2024</div>
-            <div>Peer: peer@barbell.org / barbell2024</div>
+          <form onSubmit={handleLogin}>
+            <div className="fg">
+              <label className="label">Email</label>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@barbell.org" type="email"
+                onKeyDown={(e) => e.key === "Enter" && handleLogin(e)} />
+            </div>
+            <div className="fg">
+              <label className="label">Password</label>
+              <input value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Password" type="password"
+                onKeyDown={(e) => e.key === "Enter" && handleLogin(e)} />
+            </div>
+            {err && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 12 }}>{err}</div>}
+            <button type="submit" className="btn-primary" style={{ width: "100%", padding: 12 }}
+              onClick={handleLogin}>Sign In</button>
+          </form>
+          <div style={{ marginTop: 16, textAlign: "center" }}>
+            <button
+              onClick={() => window.location.href = "/create-profile"}
+              style={{
+                background: "none", border: "none", fontSize: 13,
+                color: "var(--accent)", cursor: "pointer", opacity: 0.85,
+                textDecoration: "underline", textUnderlineOffset: 3, padding: 0,
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = "1"}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = "0.85"}
+            >Create a Profile</button>
           </div>
         </div>
       </div>
@@ -447,6 +573,7 @@ function Sidebar({ page, setPage, user, onLogout }) {
     { id: "peers",           label: "Peers",            icon: "◉" },
     { id: "generate",        label: "Generate Note",    icon: "✦" },
     { id: "ledger",          label: "Ledger",           icon: "≡" },
+    { id: "profiles",        label: "Profiles",         icon: "⊙" },
   ];
 
   const peerNav = [
@@ -458,11 +585,8 @@ function Sidebar({ page, setPage, user, onLogout }) {
 
   const nav = isAdmin ? adminNav : peerNav;
   return (
-    <div style={{
-      width: 220, flexShrink: 0, background: "var(--surface)", borderRight: "1px solid var(--border)",
-      display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0,
-    }}>
-      <div style={{ padding: "22px 20px 18px", borderBottom: "1px solid var(--border)" }}>
+    <div className="app-sidebar">
+      <div className="sidebar-brand" style={{ padding: "22px 20px 18px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 10, background: "var(--accent-dim)",
@@ -490,7 +614,7 @@ function Sidebar({ page, setPage, user, onLogout }) {
           </button>
         ))}
       </nav>
-      <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)" }}>
+      <div className="sidebar-user" style={{ padding: "14px 16px", borderTop: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <div style={{
             width: 30, height: 30, borderRadius: "50%", background: "var(--purple-dim)",
@@ -503,6 +627,9 @@ function Sidebar({ page, setPage, user, onLogout }) {
           </div>
         </div>
         <button className="btn-ghost btn-sm" style={{ width: "100%", justifyContent: "center" }} onClick={onLogout}>Sign Out</button>
+      </div>
+      <div className="sidebar-signout" style={{ display: "none", padding: "8px", borderTop: "1px solid var(--border)" }}>
+        <button className="btn-ghost btn-sm" onClick={onLogout} style={{ whiteSpace: "nowrap" }}>Sign Out</button>
       </div>
     </div>
   );
@@ -518,19 +645,19 @@ function Dashboard({ houses, clients, ledger, setPage, setGenerateTarget }) {
   const recent = [...ledger].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 1100, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 1100 }}>
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Dashboard</div>
         <div style={{ color: "var(--text-sec)", fontSize: 14 }}>Barbell Saves Project · Peer Support Operations</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+      <div className="stat-grid">
         <StatCard label="Houses" value={houses.length} icon="⬡" color="var(--accent)" />
         <StatCard label="Active Clients" value={clients.filter((c) => c.status === "Active").length} sub={`${clients.length} total enrolled`} icon="○" color="var(--green)" />
         <StatCard label="Total Hours" value={totalHours.toFixed(1)} sub="all time" icon="◷" color="var(--purple)" />
         <StatCard label="This Week" value={`${thisWeek.reduce((s, e) => s + e.mins / 60, 0).toFixed(1)}h`} sub={`${thisWeek.length} services`} icon="📅" color="var(--amber)" />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+      <div className="dash-grid">
         <div className="card">
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, color: "var(--text-sec)" }}>Recent Services</div>
           {recent.length === 0 && <div style={{ color: "var(--text-dim)", fontSize: 13, padding: "20px 0", textAlign: "center" }}>No services recorded yet. Generate your first note.</div>}
@@ -604,17 +731,17 @@ function HousesPage({ houses, clients, ledger, setPage, setGenerateTarget }) {
     const hClients = clients.filter((c) => c.houseId === selected);
     const hHours = ledger.filter((e) => e.houseId === selected).reduce((s, e) => s + e.mins / 60, 0);
     return (
-      <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 900, margin: "0 auto" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+      <div className="fade-in page-wrap" style={{ maxWidth: 900 }}>
+        <div className="page-header" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
           <button className="btn-ghost btn-sm" onClick={() => setSelected(null)}>← Houses</button>
           <div style={{ fontSize: 20, fontWeight: 700 }}>{house.name} House</div>
           <span className="badge badge-blue">{hClients.length} clients</span>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="page-header-actions" style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             <span className="badge badge-purple">{hHours.toFixed(1)} hrs logged</span>
             <button className="btn-ghost btn-sm" onClick={() => setShowHouseReport(true)}>📊 Generate Client Monthly Reports</button>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+        <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
           {hClients.length === 0 && (
             <div className="card" style={{ gridColumn: "1 / -1", textAlign: "center", color: "var(--text-dim)", padding: 32 }}>
               No clients assigned to this house yet.
@@ -651,12 +778,12 @@ function HousesPage({ houses, clients, ledger, setPage, setGenerateTarget }) {
   }
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 900, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 900 }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Houses</div>
         <div style={{ color: "var(--text-sec)", fontSize: 14 }}>Recovery residences managed by Barbell Saves</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+      <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
         {houses.map((house) => {
           const hClients = clients.filter((c) => c.houseId === house.id);
           const hHours = ledger.filter((e) => e.houseId === house.id).reduce((s, e) => s + e.mins / 60, 0);
@@ -807,13 +934,13 @@ function ClientsPage({ houses, clients, setClients, ledger, setPage, setGenerate
   );
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 1100 }}>
+      <div className="page-header" style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Clients</div>
           <div style={{ color: "var(--text-sec)", fontSize: 14 }}>{clients.filter((c) => c.status !== "Archived").length} enrolled</div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="page-header-actions" style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
           {filterOptions.map((f) => (
             <button key={f} onClick={() => setFilter(f)} style={{
               background: filter === f ? "var(--accent-dim)" : "transparent",
@@ -826,7 +953,7 @@ function ClientsPage({ houses, clients, setClients, ledger, setPage, setGenerate
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+      <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
         {filtered.length === 0 && (
           <div className="card" style={{ gridColumn: "1/-1", textAlign: "center", color: "var(--text-dim)", padding: 40 }}>
             {filter === "Archived" ? "No archived clients." : "No clients found."}
@@ -954,7 +1081,7 @@ function ClientProfile({ client, house, ledger, onBack, setPage, setGenerateTarg
   const reportText = report ? reportToText(client, house, monthEntries, monthLabel, report) : "";
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 1000 }}>
 
       {/* Back nav */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -984,7 +1111,7 @@ function ClientProfile({ client, house, ledger, onBack, setPage, setGenerateTarg
               {client.startDate && <span style={{ fontSize: 12, color: "var(--text-sec)" }}>📅 Since {fmtDate(client.startDate)}</span>}
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, textAlign: "center" }}>
+          <div className="fr2" style={{ gap: 10, textAlign: "center" }}>
             <div style={{ background: "var(--bg)", borderRadius: 10, padding: "12px 16px", border: "1px solid var(--border)" }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: accentColor, fontFamily: "DM Mono, monospace", lineHeight: 1 }}>{totalHours.toFixed(1)}</div>
               <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.8px" }}>Total Hours</div>
@@ -1043,7 +1170,8 @@ function ClientProfile({ client, house, ledger, onBack, setPage, setGenerateTarg
         )}
 
         {history.length > 0 && (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="card table-scroll" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="table-inner">
             {/* Table header */}
             <div style={{
               display: "grid",
@@ -1113,6 +1241,7 @@ function ClientProfile({ client, house, ledger, onBack, setPage, setGenerateTarg
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </div>
@@ -1178,7 +1307,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
   const [houseId, setHouseId]         = useState(generateTarget?.houseId || houses[0]?.id || "");
   const [clientId, setClientId]       = useState(generateTarget?.clientId || "");
   const [serviceType, setServiceType] = useState(SERVICE_TYPES[0]);
-  const [serviceDate, setServiceDate] = useState("");
+  const [serviceDate, setServiceDate] = useState(new Date().toISOString().split("T")[0]);
   const [startTime, setStartTime]     = useState("");
   const [endTime, setEndTime]         = useState("");
   const [mins, setMins]               = useState(60);
@@ -1188,7 +1317,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
   const [pending, setPending]         = useState(null);
   const [loading, setLoading]         = useState(false);
   const [listening, setListening]     = useState(false);
-  const [acceptedAt, setAcceptedAt]   = useState<string | null>(null); // stores ISO timestamp when note accepted
+  const [accepted, setAccepted]       = useState(false);
   const recogRef = useRef(null);
 
   // Auto-calculate duration when both times are set
@@ -1207,8 +1336,6 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
   }, [startTime, endTime]);
 
   useEffect(() => {
-    // Set today's date on mount (client-only — avoids SSR timezone mismatch)
-    setServiceDate(new Date().toISOString().split("T")[0]);
     if (generateTarget) {
       if (generateTarget.houseId) setHouseId(generateTarget.houseId);
       if (generateTarget.clientId) setClientId(generateTarget.clientId);
@@ -1279,12 +1406,11 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
     const updated = [...ledger, pending];
     setLedger(updated);
     LS.set("pb_ledger", updated);
-    const now = new Date().toISOString();
-    setAcceptedAt(now);
+    setAccepted(true);
     setPending(null);
     setNotes(""); setBarriers([]); setStartTime(""); setEndTime(""); setTimeAutoCalc(false);
     setServiceDate(new Date().toISOString().split("T")[0]);
-    setTimeout(() => setAcceptedAt(null), 2800);
+    setTimeout(() => setAccepted(false), 2800);
   };
 
   // Step 2b — Reject: discard, reset
@@ -1327,7 +1453,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
   const steps = ["Enter Details & Notes", "Review AI Note", "Saved to Ledger"];
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 1140, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 1140 }}>
 
       {/* Header + step trail */}
       <div style={{ marginBottom: 24 }}>
@@ -1336,7 +1462,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
           {steps.map((s, i) => {
             const idx = i + 1;
             const active = idx === step;
-            const done   = idx < step || !!acceptedAt;
+            const done   = idx < step || accepted;
             return (
               <div key={s} style={{ display: "flex", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -1360,7 +1486,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
       </div>
 
       {/* Accepted flash banner */}
-      {acceptedAt && (
+      {accepted && (
         <div className="fade-in" style={{
           background: "var(--green-dim)", border: "1px solid rgba(52,211,153,0.3)",
           borderRadius: 12, padding: "14px 20px", marginBottom: 20,
@@ -1369,12 +1495,12 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
           <span style={{ fontSize: 20 }}>✅</span>
           <div>
             <div style={{ fontWeight: 600, color: "var(--green)", fontSize: 14 }}>Note accepted and saved to ledger</div>
-            <div style={{ fontSize: 12, color: "var(--text-sec)", marginTop: 2 }}>Authored by {user.name} · {fmtDate(acceptedAt!)}</div>
+            <div style={{ fontSize: 12, color: "var(--text-sec)", marginTop: 2 }}>Authored by {user.name} · {fmtDate(new Date().toISOString())}</div>
           </div>
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="gen-grid">
 
         {/* ── Left column — inputs (locked during review) ─────────────────── */}
         <div style={{ opacity: pending ? 0.45 : 1, pointerEvents: pending ? "none" : "auto", transition: "opacity 0.2s" }}>
@@ -1412,7 +1538,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
               <label className="label">Service Date</label>
               <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+            <div className="time-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
               <div>
                 <label className="label">Start Time</label>
                 <select value={startTime} onChange={(e) => setStartTime(e.target.value)}>
@@ -1580,7 +1706,7 @@ function GeneratePage({ houses, clients, ledger, setLedger, generateTarget, setG
               </div>
 
               {/* Accept / Reject buttons */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="action-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <button onClick={rejectNote} style={{
                   padding: "16px 20px", borderRadius: 12, fontSize: 14, fontWeight: 700,
                   cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
@@ -1665,7 +1791,7 @@ function HouseManagementPage({ houses, setHouses, clients, ledger }) {
   };
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 900, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 900 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>House Management</div>
@@ -1683,7 +1809,7 @@ function HouseManagementPage({ houses, setHouses, clients, ledger }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+      <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
         {houses.map((house) => {
           const hClients = clients.filter((c) => c.houseId === house.id);
           const hHours = ledger.filter((e) => e.houseId === house.id).reduce((s, e) => s + e.mins / 60, 0);
@@ -1701,7 +1827,7 @@ function HouseManagementPage({ houses, setHouses, clients, ledger }) {
                 <span className={`badge badge-${house.status === "Active" ? "green" : "amber"}`}>{house.status || "Active"}</span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div className="fr3" style={{ gap: 8 }}>
                 {[
                   { label: "Clients", value: hClients.length },
                   { label: "Active", value: activeCount },
@@ -1835,13 +1961,13 @@ function LedgerPage({ houses, clients, ledger, setLedger, user }) {
   };
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 960, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 24 }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 960 }}>
+      <div className="page-header" style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Billing Ledger</div>
           <div style={{ color: "var(--text-sec)", fontSize: 14 }}>{filtered.length} services · {totalHrs.toFixed(1)} hours logged</div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="page-header-actions" style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           <select value={filterHouse} onChange={(e) => setFilterHouse(e.target.value)} style={{ width: "auto", padding: "7px 12px" }}>
             <option value="all">All Houses</option>
             {houses.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
@@ -2000,12 +2126,8 @@ function LedgerPage({ houses, clients, ledger, setLedger, user }) {
 }
 
 // ─── Report Helpers ────────────────────────────────────────────────────────
-// MONTH_OPTIONS is computed lazily on the client only — never at module init time
-// to avoid server/client locale and timezone mismatches.
-let _monthOptionsCache: { label: string; value: string }[] | null = null;
-function getMonthOptions() {
-  if (_monthOptionsCache) return _monthOptionsCache;
-  const opts: { label: string; value: string }[] = [];
+const MONTH_OPTIONS = (() => {
+  const opts = [];
   const now = new Date();
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -2014,21 +2136,8 @@ function getMonthOptions() {
       value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
     });
   }
-  _monthOptionsCache = opts;
   return opts;
-}
-// Alias used throughout the file — resolved lazily on first access
-const MONTH_OPTIONS: { label: string; value: string }[] = new Proxy([] as any, {
-  get(_, prop) {
-    const opts = getMonthOptions();
-    if (prop === "length") return opts.length;
-    if (prop === "map") return opts.map.bind(opts);
-    if (prop === "find") return opts.find.bind(opts);
-    if (prop === Symbol.iterator) return opts[Symbol.iterator].bind(opts);
-    if (typeof prop === "string" && !isNaN(Number(prop))) return opts[Number(prop)];
-    return (opts as any)[prop];
-  },
-});
+})();
 
 function entriesForMonth(ledger, monthVal) {
   return ledger.filter((e) => {
@@ -2102,8 +2211,7 @@ REQUIRED SECTIONS:
 Respond ONLY with a valid JSON object:
 {"engagementSummary":"...","barriersAddressed":"...","activitiesServices":"...","recoveryProgress":"...","continuedSupport":"..."}`;
 
-  const response = await fetch("http://localhost:3000/api/generate", {
-
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -2224,7 +2332,7 @@ function PeersPage({ peers, setPeers, ledger, houses }) {
   );
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 960, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 960 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Peers</div>
@@ -2250,7 +2358,7 @@ function PeersPage({ peers, setPeers, ledger, houses }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+      <div className="auto-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
         {visible.map((peer) => {
           const pLedger   = ledger.filter((e) => e.authorEmail === peer.email);
           const totalHrs  = pLedger.reduce((s, e) => s + e.mins / 60, 0);
@@ -2413,7 +2521,7 @@ Respond ONLY with valid JSON:
   const isArchived   = peer.status === "Archived";
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 1000, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 1000 }}>
       {/* Back nav + actions */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         {onBack
@@ -2445,7 +2553,7 @@ Respond ONLY with valid JSON:
             </div>
           </div>
           {/* Stat tiles */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div className="peer-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             {[
               { label: "Month Hrs",   value: monthHrs.toFixed(1) + "h" },
               { label: "Month Svcs",  value: monthEntries.length },
@@ -2527,7 +2635,8 @@ Respond ONLY with valid JSON:
           <div className="card" style={{ textAlign: "center", padding: 32, color: "var(--text-dim)" }}>No services recorded yet.</div>
         )}
         {pLedger.length > 0 && (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="card table-scroll" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="table-inner">
             <div style={{ display: "grid", gridTemplateColumns: "130px 1fr 120px 90px 28px", gap: 0, padding: "10px 18px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
               {["Date", "Client", "House", "Duration", ""].map((h) => (
                 <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.8px" }}>{h}</div>
@@ -2557,6 +2666,7 @@ Respond ONLY with valid JSON:
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </div>
@@ -2573,7 +2683,7 @@ function MyLedger({ user, ledger, houses }) {
   const totalHrs = myEntries.reduce((s, e) => s + e.mins / 60, 0);
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 900, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 900 }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>My Ledger</div>
         <div style={{ color: "var(--text-sec)", fontSize: 14 }}>{myEntries.length} services · {totalHrs.toFixed(1)} hours</div>
@@ -2585,7 +2695,8 @@ function MyLedger({ user, ledger, houses }) {
         </div>
       )}
       {myEntries.length > 0 && (
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="card table-scroll" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="table-inner">
           <div style={{ display: "grid", gridTemplateColumns: "130px 100px 100px 90px 1fr 28px", gap: 0, padding: "10px 18px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
             {["Date", "Start", "End", "Duration", "Service Type", ""].map((h) => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.8px" }}>{h}</div>
@@ -2617,6 +2728,7 @@ function MyLedger({ user, ledger, houses }) {
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>
@@ -2684,7 +2796,7 @@ Respond ONLY with valid JSON:
   ].join("\n") : "";
 
   return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 800, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 800 }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>My Reports</div>
         <div style={{ color: "var(--text-sec)", fontSize: 14 }}>Generate your monthly activity report</div>
@@ -2750,7 +2862,7 @@ function MyProfile({ user, peers, setPeers, ledger, houses }) {
   };
 
   if (!peer) return (
-    <div className="fade-in" style={{ padding: "28px 32px", maxWidth: 600, margin: "0 auto" }}>
+    <div className="fade-in page-wrap" style={{ maxWidth: 600 }}>
       <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>My Profile</div>
       <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>
         <div style={{ fontSize: 28, marginBottom: 12, opacity: 0.3 }}>◉</div>
@@ -2863,10 +2975,173 @@ function HouseReportModal({ open, onClose, house, clients, ledger }) {
   );
 }
 
+// ─── Profiles ──────────────────────────────────────────────────────────────
+const PROFILE_ROLES = [
+  "Peer",
+  "Housing Manager",
+  "Housing Director",
+  "Clinical Director",
+  "Admin",
+];
+
+const SINGLETON_ROLES = ["Housing Director", "Clinical Director"];
+
+function getStoredProfiles() {
+  try {
+    const raw = localStorage.getItem("profiles");
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveProfiles(profiles) {
+  try { localStorage.setItem("profiles", JSON.stringify(profiles)); } catch {}
+}
+
+function ProfilesPage({ user }) {
+  const [profiles, setProfiles] = useState(() => getStoredProfiles());
+  const [showAdd, setShowAdd]   = useState(false);
+  const [name, setName]         = useState("");
+  const [role, setRole]         = useState(PROFILE_ROLES[0]);
+  const [err, setErr]           = useState("");
+
+  // Only Admin and Housing Director have create/delete rights.
+  // Housing Director acts as the default Admin.
+  const isPrivileged = user?.role === "Admin" || user?.role === "Housing Director";
+
+  const addProfile = () => {
+    if (!name.trim()) { setErr("Name is required."); return; }
+
+    // Enforce singleton roles
+    if (SINGLETON_ROLES.includes(role)) {
+      const exists = profiles.some((p) => p.role === role);
+      if (exists) {
+        setErr(`Only one ${role} profile is allowed.`);
+        return;
+      }
+    }
+
+    const newProfile = {
+      id:   profiles.length > 0 ? Math.max(...profiles.map((p) => p.id)) + 1 : 1,
+      name: name.trim(),
+      role,
+    };
+    const updated = [...profiles, newProfile];
+    setProfiles(updated);
+    saveProfiles(updated);
+    setName(""); setRole(PROFILE_ROLES[0]); setErr(""); setShowAdd(false);
+  };
+
+  const deleteProfile = (id) => {
+    const target = profiles.find((p) => p.id === id);
+    if (target && target.name === user?.name) {
+      alert("You cannot delete your own profile.");
+      return;
+    }
+    const updated = profiles.filter((p) => p.id !== id);
+    setProfiles(updated);
+    saveProfiles(updated);
+  };
+
+  const badgeClass = (r) => {
+    if (r === "Admin")             return "badge-blue";
+    if (r === "Clinical Director") return "badge-red";
+    if (r === "Housing Director")  return "badge-amber";
+    if (r === "Housing Manager")   return "badge-green";
+    return "badge-purple";
+  };
+
+  const avatarStyle = (r) => ({
+    background: (r === "Admin" || r === "Housing Director") ? "var(--accent-dim)" : "var(--purple-dim)",
+    color:      (r === "Admin" || r === "Housing Director") ? "var(--accent)"     : "var(--purple)",
+  });
+
+  return (
+    <div className="fade-in page-wrap" style={{ maxWidth: 700 }}>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Profiles</div>
+        <div style={{ color: "var(--text-sec)", fontSize: 14 }}>Local profiles stored in this browser</div>
+      </div>
+
+      {/* Profile list */}
+      <div className="card" style={{ marginBottom: 16, padding: 0, overflow: "hidden" }}>
+        {profiles.length === 0 && (
+          <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--text-dim)", fontSize: 13 }}>
+            No profiles yet.{isPrivileged ? " Use the form below to create one." : ""}
+          </div>
+        )}
+        {profiles.map((p, idx) => {
+          const isSelf = p.name === user?.name;
+          return (
+            <div key={p.id} style={{
+              display: "flex", alignItems: "center", gap: 14,
+              padding: "14px 20px",
+              borderBottom: idx < profiles.length - 1 ? "1px solid var(--border)" : "none",
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, fontWeight: 700,
+                ...avatarStyle(p.role),
+              }}>
+                {p.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {p.name}
+                  {isSelf && <span style={{ fontSize: 11, color: "var(--text-dim)", marginLeft: 8 }}>(you)</span>}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-sec)", marginTop: 2 }}>{p.role}</div>
+              </div>
+              <span className={`badge ${badgeClass(p.role)}`}>{p.role}</span>
+              {isPrivileged && !isSelf && (
+                <button
+                  onClick={() => deleteProfile(p.id)}
+                  style={{
+                    marginLeft: 8, background: "var(--red-dim)", border: "1px solid rgba(248,113,113,0.2)",
+                    color: "var(--red)", borderRadius: 6, padding: "4px 10px", fontSize: 12,
+                    cursor: "pointer", flexShrink: 0,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(248,113,113,0.2)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "var(--red-dim)"}
+                >Delete</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add profile — only visible to privileged roles */}
+      {isPrivileged && (
+        showAdd ? (
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14, color: "var(--text-sec)" }}>New Profile</div>
+            <div className="fg">
+              <label className="label">Name *</label>
+              <input value={name} onChange={(e) => { setName(e.target.value); setErr(""); }} placeholder="Full name"
+                onKeyDown={(e) => e.key === "Enter" && addProfile()} autoFocus />
+            </div>
+            <div className="fg">
+              <label className="label">Role</label>
+              <select value={role} onChange={(e) => { setRole(e.target.value); setErr(""); }}>
+                {PROFILE_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            {err && <div style={{ fontSize: 13, color: "var(--red)", marginBottom: 12 }}>{err}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+              <button className="btn-ghost btn-sm" onClick={() => { setShowAdd(false); setName(""); setRole(PROFILE_ROLES[0]); setErr(""); }}>Cancel</button>
+              <button className="btn-primary btn-sm" onClick={addProfile}>Save Profile</button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Profile</button>
+        )
+      )}
+    </div>
+  );
+}
+
 // ─── App Root ──────────────────────────────────────────────────────────────
 export default function App() {
-  const [mounted, setMounted] = useState(false);
-
   const [user, setUser]             = useState(() => LS.get("pb_user", null));
   const [page, setPage]             = useState("dashboard");
   const [houses, setHouses]         = useState(() => LS.get("pb_houses", []));
@@ -2875,12 +3150,6 @@ export default function App() {
   const [peers, setPeers]           = useState(() => LS.get("pb_peers", []));
   const [generateTarget, setGenerateTarget] = useState(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
   const isAdmin = user?.role === "Admin";
 
   const handleLogin  = (u) => { setUser(u); LS.set("pb_user", u); setPage(u.role === "Admin" ? "dashboard" : "generate"); };
@@ -2888,7 +3157,7 @@ export default function App() {
 
   if (!user) return (
     <>
-      <StyleInjector />
+      <style>{css}</style>
       <LoginScreen onLogin={handleLogin} />
     </>
   );
@@ -2905,6 +3174,8 @@ export default function App() {
     ledger:          <LedgerPage {...sharedProps} user={user} />,
     // Shared
     generate:        <GeneratePage {...sharedProps} generateTarget={generateTarget} setGenerateTarget={setGenerateTarget} user={user} />,
+    // Admin extras
+    profiles:        <ProfilesPage user={user} />,
     // Peer-only pages
     myledger:        <MyLedger user={user} ledger={ledger} houses={houses} />,
     myreports:       <MyReports user={user} ledger={ledger} houses={houses} />,
@@ -2917,14 +3188,13 @@ export default function App() {
 
   return (
     <>
-      <StyleInjector />
-      <div style={{ display: "flex", minHeight: "100vh" }}>
+      <style>{css}</style>
+      <div className="app-shell">
         <Sidebar page={validPage} setPage={setPage} user={user} onLogout={handleLogout} />
-        <div style={{ flex: 1, overflow: "auto", background: "var(--bg)" }}>
+        <div className="app-content">
           {pages[validPage] || (isAdmin ? pages.dashboard : pages.generate)}
         </div>
       </div>
     </>
   );
 }
-
