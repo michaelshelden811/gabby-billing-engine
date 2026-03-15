@@ -1,14 +1,22 @@
-import "./globals.css";
+/* Mobile Navigation Fix */
 
-export const metadata = {
-  title: "Gabby Billing Engine",
-  description: "Peer Support Billing System",
-};
+@media (max-width: 768px) {
 
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+  nav {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding: 8px;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  nav * {
+    flex: 0 0 auto;
+  }
+
 }
