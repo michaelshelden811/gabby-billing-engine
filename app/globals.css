@@ -1,0 +1,14 @@
+/* Mobile navigation fix */
+
+@media (max-width: 768px) {
+
+  nav {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
+  }
+
+}
