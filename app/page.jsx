@@ -1,4 +1,4 @@
-import BillingUX from "../components/BillingUX";
+import BillingUX from "../components/billing/BillingUX";
 
 export default function Page() {
   return (
@@ -7,7 +7,8 @@ export default function Page() {
         width: "100%",
         maxWidth: "100vw",
         overflowX: "hidden",
-        padding: "10px"
+        padding: "10px",
+        boxSizing: "border-box"
       }}
     >
       <BillingUX />
