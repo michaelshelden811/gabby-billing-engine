@@ -249,6 +249,59 @@ const css = `
     .fr3       { grid-template-columns: 1fr; }
     .auto-grid { grid-template-columns: 1fr !important; }
   }
+/* ---------- Responsive Layout ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.app-container {
+  width: 100%;
+  max-width: 100%;
+}
+
+.main-content {
+  width: 100%;
+  max-width: 100%;
+}
+
+.grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.card {
+  width: 100%;
+}
+
+table {
+  display: block;
+  overflow-x: auto;
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 768px) {
+
+  .sidebar {
+    display: none;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    width: 100%;
+  }
+
+}
 `;
 
 // ─── Utilities ────────────────────────────────────────────────────────────
