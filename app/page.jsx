@@ -1,4 +1,4 @@
-import BillingUX from "../components/billing/BillingUX";
+import BillingUX from "../components/BillingUX";
 
 export default function Page() {
   return (
