@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Palette & Design System ───────────────────────────────────────────────
 const css = `
@@ -462,23 +462,38 @@ const BARRIERS = [
 ];
 
 // ─── LocalStorage helpers ─────────────────────────────────────────────────
+// Guards against SSR: localStorage is not available in Node.js (Next.js server render).
 const LS = {
   get: (k, def) => {
+    if (typeof window === "undefined") return def;
     try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; }
   },
-  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  set: (k, v) => {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+  },
 };
 
 // ─── Structured Data Stores ───────────────────────────────────────────────
 // These stores manage each data domain independently via localStorage.
 // Each store exposes: get, save, add, delete (and helpers where applicable).
 // Mirrors: /stores/profilesStore.ts, housesStore.ts, clientsStore.ts, servicesStore.ts
+// All localStorage calls are guarded for SSR safety (Next.js server render).
+
+const _lsGet = (key, def) => {
+  if (typeof window === "undefined") return def;
+  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : def; } catch { return def; }
+};
+const _lsSet = (key, val) => {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+};
 
 // ── Profiles Store ── key: "profiles" ─────────────────────────────────────
 // Model: { id: number, name: string, role: string }
 const ProfilesStore = {
-  get: ()                               => { try { const r = localStorage.getItem("profiles"); return r ? JSON.parse(r) : []; } catch { return []; } },
-  save: (profiles)                      => { try { localStorage.setItem("profiles", JSON.stringify(profiles)); } catch {} },
+  get: ()                               => _lsGet("profiles", []),
+  save: (profiles)                      => _lsSet("profiles", profiles),
   add: (name, role)                     => { const cur = ProfilesStore.get(); const id = cur.length > 0 ? Math.max(...cur.map((p) => p.id)) + 1 : 1; const updated = [...cur, { id, name: name.trim(), role }]; ProfilesStore.save(updated); return updated; },
   delete: (id)                          => { const updated = ProfilesStore.get().filter((p) => p.id !== id); ProfilesStore.save(updated); return updated; },
   getById: (id)                         => ProfilesStore.get().find((p) => p.id === id),
@@ -487,8 +502,8 @@ const ProfilesStore = {
 // ── Houses Store ── key: "pb_houses" ──────────────────────────────────────
 // Model: { id: string, name: string, managerId: string }
 const HousesStore = {
-  get: ()                               => { try { const r = localStorage.getItem("pb_houses"); return r ? JSON.parse(r) : []; } catch { return []; } },
-  save: (houses)                        => { try { localStorage.setItem("pb_houses", JSON.stringify(houses)); } catch {} },
+  get: ()                               => _lsGet("pb_houses", []),
+  save: (houses)                        => _lsSet("pb_houses", houses),
   add: (name, managerId = "")           => { const cur = HousesStore.get(); const id = Math.random().toString(36).slice(2, 9); const updated = [...cur, { id, name: name.trim(), managerId }]; HousesStore.save(updated); return updated; },
   delete: (id)                          => { const updated = HousesStore.get().filter((h) => h.id !== id); HousesStore.save(updated); return updated; },
   getById: (id)                         => HousesStore.get().find((h) => h.id === id),
@@ -498,8 +513,8 @@ const HousesStore = {
 // ── Clients Store ── key: "pb_clients" ────────────────────────────────────
 // Model: { id: string, name: string, houseId: string }
 const ClientsStore = {
-  get: ()                               => { try { const r = localStorage.getItem("pb_clients"); return r ? JSON.parse(r) : []; } catch { return []; } },
-  save: (clients)                       => { try { localStorage.setItem("pb_clients", JSON.stringify(clients)); } catch {} },
+  get: ()                               => _lsGet("pb_clients", []),
+  save: (clients)                       => _lsSet("pb_clients", clients),
   add: (name, houseId = "")             => { const cur = ClientsStore.get(); const id = Math.random().toString(36).slice(2, 9); const updated = [...cur, { id, name: name.trim(), houseId }]; ClientsStore.save(updated); return updated; },
   delete: (id)                          => { const updated = ClientsStore.get().filter((c) => c.id !== id); ClientsStore.save(updated); return updated; },
   getById: (id)                         => ClientsStore.get().find((c) => c.id === id),
@@ -510,8 +525,8 @@ const ClientsStore = {
 // ── Services Store ── key: "pb_ledger" ────────────────────────────────────
 // Model: { id: string, peerId: string, clientId: string, houseId: string, duration: number, note: string, date: string }
 const ServicesStore = {
-  get: ()                               => { try { const r = localStorage.getItem("pb_ledger"); return r ? JSON.parse(r) : []; } catch { return []; } },
-  save: (services)                      => { try { localStorage.setItem("pb_ledger", JSON.stringify(services)); } catch {} },
+  get: ()                               => _lsGet("pb_ledger", []),
+  save: (services)                      => _lsSet("pb_ledger", services),
   add: (peerId, clientId, houseId, duration, note, date) => { const cur = ServicesStore.get(); const id = Math.random().toString(36).slice(2, 9); const updated = [...cur, { id, peerId, clientId, houseId, duration, note: (note || "").trim(), date: date ?? new Date().toISOString() }]; ServicesStore.save(updated); return updated; },
   delete: (id)                          => { const updated = ServicesStore.get().filter((s) => s.id !== id); ServicesStore.save(updated); return updated; },
   getById: (id)                         => ServicesStore.get().find((s) => s.id === id),
@@ -3222,6 +3237,7 @@ const PROFILE_ROLES = [
 const SINGLETON_ROLES = ["Housing Director", "Clinical Director"];
 
 function getStoredProfiles() {
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem("profiles");
     return raw ? JSON.parse(raw) : [];
@@ -3229,6 +3245,7 @@ function getStoredProfiles() {
 }
 
 function saveProfiles(profiles) {
+  if (typeof window === "undefined") return;
   try { localStorage.setItem("profiles", JSON.stringify(profiles)); } catch {}
 }
 
