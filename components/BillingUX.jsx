@@ -1,6 +1,5 @@
 "use client";
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Palette & Design System ───────────────────────────────────────────────
 const css = `
@@ -163,14 +162,38 @@ const css = `
   .pulse { animation: pulse 1.5s ease infinite; }
 
   /* ─── Responsive layout ─────────────────────────────────────── */
-  .app-shell   { display: flex; min-height: 100vh; overflow-x: hidden; }
-  .app-content { flex: 1; overflow: auto; background: var(--bg); min-width: 0; }
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .app-shell {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .app-content {
+    flex: 1;
+    min-width: 0;          /* prevents flex child from overflowing */
+    width: 0;              /* forces flex to honour flex:1 properly  */
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: var(--bg);
+  }
 
   .app-sidebar {
-    width: 220px; flex-shrink: 0;
-    background: var(--surface); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    height: 100vh; position: sticky; top: 0;
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
+    top: 0;
   }
 
   /* Hamburger button — hidden on desktop */
@@ -182,32 +205,51 @@ const css = `
 
   .page-wrap { padding: 28px 32px; margin: 0 auto; }
 
-  .stat-grid    { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-  .dash-grid    { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
-  .gen-grid     { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .dash-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  .gen-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
   @media (max-width: 768px) {
-    html, body { overflow-x: hidden; }
+    html, body {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
 
-    /* App shell stacks vertically */
-    .app-shell { flex-direction: column; }
+    /* Root fragment stacks header above shell */
+    .app-shell {
+      flex-direction: column;
+      min-height: calc(100vh - 56px); /* subtract mobile header height */
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
 
-    /* Desktop sidebar hidden on mobile */
+    /* Desktop sidebar hidden — content must fill full width */
     .app-sidebar { display: none !important; }
 
-    /* Mobile header bar shown */
+    .app-content {
+      width: 100% !important;
+      max-width: 100vw;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    /* ── Mobile header bar ── */
     .mob-nav-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 16px;
       height: 56px;
+      width: 100%;
+      max-width: 100vw;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
       flex-shrink: 0;
+      box-sizing: border-box;
     }
 
     .mob-nav-brand {
@@ -220,6 +262,7 @@ const css = `
       width: 30px; height: 30px; border-radius: 8px;
       background: var(--accent-dim); border: 1px solid var(--accent-glow);
       display: flex; align-items: center; justify-content: center; font-size: 15px;
+      flex-shrink: 0;
     }
 
     .mob-nav-brand-text { font-size: 14px; font-weight: 700; }
@@ -237,6 +280,7 @@ const css = `
       font-size: 18px;
       cursor: pointer;
       transition: background 0.15s;
+      flex-shrink: 0;
     }
     .mob-menu-btn:hover { background: var(--card); color: var(--text); }
 
@@ -245,12 +289,16 @@ const css = `
       position: fixed;
       top: 56px;
       left: 0; right: 0;
+      width: 100%;
       z-index: 99;
       background: var(--surface);
       border-bottom: 1px solid var(--border-strong);
       box-shadow: var(--shadow-lg);
       padding: 8px 12px 12px;
       animation: fadeIn 0.15s ease;
+      box-sizing: border-box;
+      overflow-y: auto;
+      max-height: calc(100vh - 56px);
     }
     .mob-nav-dropdown.open { display: block; }
 
@@ -268,6 +316,7 @@ const css = `
       font-weight: 500;
       margin-bottom: 2px;
       transition: background 0.12s;
+      box-sizing: border-box;
     }
 
     .mob-nav-item:hover { background: var(--card-hover); }
@@ -300,6 +349,7 @@ const css = `
       font-weight: 500;
       color: var(--red);
       background: var(--red-dim);
+      box-sizing: border-box;
     }
     .mob-nav-signout:hover { background: rgba(248,113,113,0.18); }
 
@@ -319,10 +369,12 @@ const css = `
     .mob-nav-user-role { font-size: 11px; color: var(--text-dim); }
 
     /* Page padding */
-    .page-wrap { padding: 14px 16px; }
+    .page-wrap { padding: 14px 16px; width: 100%; box-sizing: border-box; }
 
-    /* Named layout grids collapse */
-    .stat-grid { grid-template-columns: 1fr 1fr; }
+    /* Dashboard grids — responsive auto-fill */
+    .stat-grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
     .dash-grid { grid-template-columns: 1fr; }
     .gen-grid  { grid-template-columns: 1fr; }
 
@@ -330,39 +382,43 @@ const css = `
     .fr2 { grid-template-columns: 1fr; }
     .fr3 { grid-template-columns: 1fr 1fr; }
 
-    /* auto-fill card grids: force 1 column on small phones */
+    /* auto-fill card grids: force single column */
     .auto-grid { grid-template-columns: 1fr !important; }
 
-    /* Fixed fixed-pixel table grids: allow horizontal scroll instead of overflow */
+    /* Data tables: horizontal scroll instead of overflow */
     .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .table-scroll .table-inner { min-width: 560px; }
 
-    /* Accept / reject 2-col → stack */
+    /* Accept / reject buttons stack */
     .action-grid { grid-template-columns: 1fr !important; }
 
-    /* Time-field inline grid → stack */
+    /* Time fields stack */
     .time-grid { grid-template-columns: 1fr !important; }
 
-    /* Peer profile stat tiles: shrink but stay 3-col */
+    /* Peer stat tiles: compact */
     .peer-stats { gap: 6px !important; }
     .peer-stats > div { padding: 8px 6px !important; }
 
-    /* Page header rows with filter pills wrap on mobile */
+    /* Page header rows with filter pills wrap */
     .page-header { flex-wrap: wrap; gap: 10px !important; }
     .page-header-actions { margin-left: 0 !important; flex-wrap: wrap; }
 
-    /* Modal full-width on mobile */
+    /* Cards: never exceed viewport */
+    .card { max-width: 100%; box-sizing: border-box; }
+
+    /* Modals: full-screen on mobile */
     .modal-box {
-      width: 100% !important; max-width: 100% !important;
+      width: 100% !important; max-width: 100vw !important;
       margin: 0; border-radius: 0 !important;
       max-height: 100vh; height: 100vh;
     }
   }
 
   @media (max-width: 480px) {
-    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .stat-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
     .fr3       { grid-template-columns: 1fr; }
     .auto-grid { grid-template-columns: 1fr !important; }
+    .page-wrap { padding: 10px 12px; }
   }
 `;
 
