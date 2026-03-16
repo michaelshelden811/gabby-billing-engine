@@ -5,10 +5,13 @@ export default function Page() {
     <div
       style={{
         width: "100%",
-        maxWidth: "100vw",
-        overflowX: "hidden",
-        padding: "10px",
-        boxSizing: "border-box"
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "flex-start",
+        background: "#0a0f1a",
+        padding: "0px",
+        margin: "0px",
       }}
     >
       <BillingUX />
