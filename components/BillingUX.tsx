@@ -1,4 +1,3 @@
-"use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Palette & Design System ───────────────────────────────────────────────
@@ -172,6 +171,13 @@ const css = `
     height: 100vh; position: sticky; top: 0;
   }
 
+  /* Hamburger button — hidden on desktop */
+  .mob-nav-header { display: none; }
+  .mob-menu-btn   { display: none; }
+
+  /* Mobile dropdown — hidden on desktop */
+  .mob-nav-dropdown { display: none; }
+
   .page-wrap { padding: 28px 32px; margin: 0 auto; }
 
   .stat-grid    { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
@@ -181,28 +187,134 @@ const css = `
   @media (max-width: 768px) {
     html, body { overflow-x: hidden; }
 
-    /* App shell: sidebar becomes top nav bar */
-    .app-shell   { flex-direction: column; }
-    .app-sidebar {
-      width: 100%; height: auto; position: relative;
-      flex-direction: row; border-right: none;
+    /* App shell stacks vertically */
+    .app-shell { flex-direction: column; }
+
+    /* Desktop sidebar hidden on mobile */
+    .app-sidebar { display: none !important; }
+
+    /* Mobile header bar shown */
+    .mob-nav-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      height: 56px;
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-shrink: 0;
     }
-    .app-sidebar .sidebar-brand { display: none; }
-    .app-sidebar nav {
-      display: flex; flex-direction: row; flex: 1;
-      padding: 6px 8px; gap: 2px; overflow-x: auto;
+
+    .mob-nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    .app-sidebar nav button {
-      flex-direction: column; gap: 2px; padding: 7px 10px;
-      min-width: 54px; white-space: nowrap; border-left: none !important;
-      border-bottom: 2px solid transparent; border-radius: 8px; text-align: center;
+
+    .mob-nav-brand-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: var(--accent-dim); border: 1px solid var(--accent-glow);
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
     }
-    .app-sidebar .sidebar-user  { display: none; }
-    .app-sidebar .sidebar-signout {
-      display: flex !important; align-items: center;
-      padding: 8px; border-left: 1px solid var(--border); flex-shrink: 0;
+
+    .mob-nav-brand-text { font-size: 14px; font-weight: 700; }
+
+    /* Hamburger button */
+    .mob-menu-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px; height: 38px;
+      border-radius: 8px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-sec);
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.15s;
     }
+    .mob-menu-btn:hover { background: var(--card); color: var(--text); }
+
+    /* Dropdown menu */
+    .mob-nav-dropdown {
+      position: fixed;
+      top: 56px;
+      left: 0; right: 0;
+      z-index: 99;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-lg);
+      padding: 8px 12px 12px;
+      animation: fadeIn 0.15s ease;
+    }
+    .mob-nav-dropdown.open { display: block; }
+
+    .mob-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+      transition: background 0.12s;
+    }
+
+    .mob-nav-item:hover { background: var(--card-hover); }
+
+    .mob-nav-item.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .mob-nav-item:not(.active) { color: var(--text-sec); background: transparent; }
+
+    .mob-nav-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 0;
+    }
+
+    .mob-nav-signout {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--red);
+      background: var(--red-dim);
+    }
+    .mob-nav-signout:hover { background: rgba(248,113,113,0.18); }
+
+    .mob-nav-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px 6px;
+    }
+    .mob-nav-user-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--purple-dim); color: var(--purple);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .mob-nav-user-name { font-size: 13px; font-weight: 600; }
+    .mob-nav-user-role { font-size: 11px; color: var(--text-dim); }
 
     /* Page padding */
     .page-wrap { padding: 14px 16px; }
@@ -562,11 +674,9 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-// ─── Sidebar ───────────────────────────────────────────────────────────────
-function Sidebar({ page, setPage, user, onLogout }) {
-  const isAdmin = user.role === "Admin";
-
-  const adminNav = [
+// ─── Shared nav items helper ───────────────────────────────────────────────
+function getNav(role) {
+  if (role === "Admin") return [
     { id: "dashboard",       label: "Dashboard",        icon: "◈" },
     { id: "houses",          label: "Houses",           icon: "⬡" },
     { id: "housemanagement", label: "House Management", icon: "⊞" },
@@ -576,15 +686,17 @@ function Sidebar({ page, setPage, user, onLogout }) {
     { id: "ledger",          label: "Ledger",           icon: "≡" },
     { id: "profiles",        label: "Profiles",         icon: "⊙" },
   ];
-
-  const peerNav = [
+  return [
     { id: "generate",   label: "Generate Note", icon: "✦" },
     { id: "myledger",   label: "My Ledger",     icon: "≡" },
     { id: "myreports",  label: "My Reports",    icon: "◧" },
     { id: "myprofile",  label: "My Profile",    icon: "◉" },
   ];
+}
 
-  const nav = isAdmin ? adminNav : peerNav;
+// ─── Desktop Sidebar (hidden on mobile via CSS) ────────────────────────────
+function DesktopSidebar({ page, setPage, user, onLogout }) {
+  const nav = getNav(user.role);
   return (
     <div className="app-sidebar">
       <div className="sidebar-brand" style={{ padding: "22px 20px 18px", borderBottom: "1px solid var(--border)" }}>
@@ -629,10 +741,74 @@ function Sidebar({ page, setPage, user, onLogout }) {
         </div>
         <button className="btn-ghost btn-sm" style={{ width: "100%", justifyContent: "center" }} onClick={onLogout}>Sign Out</button>
       </div>
-      <div className="sidebar-signout" style={{ display: "none", padding: "8px", borderTop: "1px solid var(--border)" }}>
-        <button className="btn-ghost btn-sm" onClick={onLogout} style={{ whiteSpace: "nowrap" }}>Sign Out</button>
-      </div>
     </div>
+  );
+}
+
+// ─── Mobile Nav — hamburger header + dropdown (visible only on mobile) ─────
+function MobileNav({ page, setPage, user, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const nav = getNav(user.role);
+
+  const handleNavClick = (id) => {
+    setPage(id);
+    setOpen(false);
+  };
+
+  return (
+    <>
+      {/* Header bar */}
+      <div className="mob-nav-header">
+        <div className="mob-nav-brand">
+          <div className="mob-nav-brand-icon">🏋️</div>
+          <span className="mob-nav-brand-text">PeerBill</span>
+        </div>
+        <button
+          className="mob-menu-btn"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Close menu" : "Open menu"}
+        >
+          {open ? "✕" : "☰"}
+        </button>
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="mob-nav-dropdown open">
+          {/* User info */}
+          <div className="mob-nav-user">
+            <div className="mob-nav-user-avatar">
+              {user.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+            </div>
+            <div>
+              <div className="mob-nav-user-name">{user.name}</div>
+              <div className="mob-nav-user-role">{user.role}</div>
+            </div>
+          </div>
+          <div className="mob-nav-divider" />
+
+          {/* Nav items */}
+          {nav.map((item) => (
+            <button
+              key={item.id}
+              className={`mob-nav-item${page === item.id ? " active" : ""}`}
+              onClick={() => handleNavClick(item.id)}
+            >
+              <span style={{ fontSize: 16, opacity: 0.8, width: 20, textAlign: "center" }}>{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+
+          <div className="mob-nav-divider" />
+
+          {/* Sign Out */}
+          <button className="mob-nav-signout" onClick={() => { setOpen(false); onLogout(); }}>
+            <span style={{ fontSize: 15 }}>⎋</span>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1100,7 +1276,7 @@ function ClientProfile({ client, house, ledger, onBack, setPage, setGenerateTarg
 
       {/* Profile header */}
       <div className="card" style={{ marginBottom: 20, borderTop: `3px solid ${accentColor}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
           <Avatar first={client.firstName} last={client.lastName} photo={client.photo} color={accentColor} size={72} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
@@ -1793,12 +1969,12 @@ function HouseManagementPage({ houses, setHouses, clients, ledger }) {
 
   return (
     <div className="fade-in page-wrap" style={{ maxWidth: 900 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
+      <div className="page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>House Management</div>
           <div style={{ color: "var(--text-sec)", fontSize: 14 }}>Add, edit, and manage recovery houses</div>
         </div>
-        <button className="btn-primary" onClick={openAdd} style={{ marginTop: 4 }}>+ Add House</button>
+        <button className="btn-primary" onClick={openAdd} style={{ marginTop: 4, flexShrink: 0 }}>+ Add House</button>
       </div>
 
       {houses.length === 0 && (
@@ -2334,12 +2510,12 @@ function PeersPage({ peers, setPeers, ledger, houses }) {
 
   return (
     <div className="fade-in page-wrap" style={{ maxWidth: 960 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Peers</div>
           <div style={{ color: "var(--text-sec)", fontSize: 14 }}>Peer support staff directory</div>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="page-header-actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {["active", "Archived"].map((f) => (
             <button key={f} onClick={() => setFilter(f)} style={{
               background: filter === f ? "var(--accent-dim)" : "transparent",
@@ -3190,8 +3366,11 @@ export default function App() {
   return (
     <>
       <style>{css}</style>
+      {/* Mobile header + hamburger dropdown — rendered outside app-shell flex container */}
+      <MobileNav page={validPage} setPage={setPage} user={user} onLogout={handleLogout} />
+      {/* Desktop app shell — sidebar + content side by side */}
       <div className="app-shell">
-        <Sidebar page={validPage} setPage={setPage} user={user} onLogout={handleLogout} />
+        <DesktopSidebar page={validPage} setPage={setPage} user={user} onLogout={handleLogout} />
         <div className="app-content">
           {pages[validPage] || (isAdmin ? pages.dashboard : pages.generate)}
         </div>
