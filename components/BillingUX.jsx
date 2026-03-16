@@ -3394,6 +3394,8 @@ function ProfilesPage({ user }) {
 
 // ─── App Root ──────────────────────────────────────────────────────────────
 export default function App() {
+  const [mounted, setMounted] = useState(false);
+
   const [user, setUser]             = useState(() => LS.get("pb_user", null));
   const [page, setPage]             = useState("dashboard");
   const [houses, setHouses]         = useState(() => LS.get("pb_houses", []));
@@ -3402,10 +3404,16 @@ export default function App() {
   const [peers, setPeers]           = useState(() => LS.get("pb_peers", []));
   const [generateTarget, setGenerateTarget] = useState(null);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isAdmin = user?.role === "Admin";
 
   const handleLogin  = (u) => { setUser(u); LS.set("pb_user", u); setPage(u.role === "Admin" ? "dashboard" : "generate"); };
   const handleLogout = () => { setUser(null); LS.set("pb_user", null); setPage("dashboard"); };
+
+  if (!mounted) return null;
 
   if (!user) return (
     <>
